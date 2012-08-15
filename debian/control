@@ -1,0 +1,27 @@
+Source: telldus-core
+Section: web
+Priority: extra
+Maintainer: Carl Fürstenberg <carl@excito.com>
+Build-Depends: debhelper (>= 8.0.0), cmake, libconfuse-dev, help2man, libqt4-dev
+Standards-Version: 3.9.2
+Homepage: http://telldus.se
+
+Package: libtelldus-core
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Tellstick core lib
+ Core library from Telldus tellstick
+
+Package: libtelldus-core-dev
+Section: libdevel
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Tellstick core lib dev files
+ Core library from Telldus tellstick - developement files
+
+Package: telldus-core
+Architecture: any
+Depends: libtelldus-core (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Description: Tellstick core
+ Misc things for telldus tellstick

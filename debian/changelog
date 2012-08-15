@@ -1,0 +1,11 @@
+telldus-core (2.0.4-2) unstable; urgency=low
+
+  * fix config file 
+
+ -- Carl Fürstenberg <carl@excito.com>  Wed, 15 Aug 2012 17:18:34 +0200
+
+telldus-core (2.0.4-1) unstable; urgency=low
+
+  * Initial release
+
+ -- Carl Fürstenberg <carl@excito.com>  Wed, 15 Aug 2012 17:18:04 +0200

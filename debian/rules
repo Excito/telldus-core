@@ -1,0 +1,13 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+export LDFLAGS="-pthread"
+override_dh_auto_configure:
+	dh_auto_configure -- -DBUILD_LIBTELLDUS-CORE=1 -DBUILD_TDTOOL=1 -DBUILD_RFCMD_WITH_LIBFTDI=0 -DGENERATE_MAN=1
+
+
+%:
+	dh $@ --buildystem=cmake
