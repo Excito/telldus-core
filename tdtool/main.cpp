@@ -2,7 +2,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../driver/libtelldus-core/telldus-core.h"
+#include "../client/telldus-core.h"
 
 const int SUPPORTED_METHODS =
 	TELLSTICK_TURNON |
@@ -71,7 +71,7 @@ void print_usage( char *name ) {
 void print_version() {
 	printf("tdtool " VERSION "\n");
 	printf("\n");
-	printf("Copyright (C) 2009 Telldus Technologies AB\n");
+	printf("Copyright (C) 2011 Telldus Technologies AB\n");
 	printf("\n");
 	printf("Written by Micke Prag <micke.prag@telldus.se>\n");
 }
@@ -103,6 +103,12 @@ void print_device( int index ) {
 
 void list_devices() {
 	int intNum = tdGetNumberOfDevices();
+	if (intNum < 0) {
+		char *errorString = tdGetErrorString(intNum);
+		fprintf(stderr, "Error fetching devices: %s\n", errorString);
+		tdReleaseString(errorString);
+		return;
+	}
 	printf("Number of devices: %i\n", intNum);
 	int i = 0;
 	while (i < intNum) {

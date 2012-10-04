@@ -3,20 +3,20 @@ PROJECT(tdtool)
 cmake_policy(SET CMP0005 NEW)
 
 SET (tdtool_DESCRIPTION
-	"a command line utility to control a Telldus TellStick"
+	"a command line utility to send commands to a Telldus TellStick"
 )
 
 SET(tdtool_SRCS
-  main.cpp
+	main.cpp
 )
 
 ADD_EXECUTABLE(tdtool
-  ${tdtool_SRCS}
+	${tdtool_SRCS}
 )
 
 INCLUDE_DIRECTORIES(
-  ${CMAKE_CURRENT_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/driver
+	${CMAKE_CURRENT_BINARY_DIR}
+	${CMAKE_SOURCE_DIR}/driver
 )
 
 ADD_DEFINITIONS( -DVERSION="${DISPLAYED_VERSION}" )
@@ -26,13 +26,13 @@ IF (WIN32)
 	TARGET_LINK_LIBRARIES(tdtool
 		${TELLDUSCORE_LIBRARY}
 	)
-ELSEIF (APPLE)	
+ELSEIF (APPLE)
 	TARGET_LINK_LIBRARIES(tdtool
 		TelldusCore
 	)
-ELSE (WIN32)	
+ELSE (WIN32)
 	TARGET_LINK_LIBRARIES(tdtool
-		telldus-core
+		${CMAKE_BINARY_DIR}/client/libtelldus-core.so
 	)
 ENDIF (WIN32)
 
