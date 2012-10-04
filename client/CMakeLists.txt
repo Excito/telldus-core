@@ -2,6 +2,8 @@ IF(COMMAND cmake_policy)
 	cmake_policy(SET CMP0003 NEW)
 ENDIF(COMMAND cmake_policy)
 
+FIND_PACKAGE( SignTool REQUIRED )
+
 ######## Non configurable options  ########
 SET( telldus-core_SRCS
 	CallbackDispatcher.cpp
@@ -111,15 +113,16 @@ SET_TARGET_PROPERTIES(${telldus-core_TARGET} PROPERTIES
 	VERSION ${PACKAGE_VERSION}
 	SOVERSION ${PACKAGE_SOVERSION}
 )
+SIGN(${telldus-core_TARGET})
 
-IF (NOT LIBRARY_DIR)
-	SET(LIBRARY_DIR "lib")
-ENDIF (NOT LIBRARY_DIR)
+IF (NOT LIB_INSTALL_DIR)
+	SET(LIB_INSTALL_DIR "lib")
+ENDIF (NOT LIB_INSTALL_DIR)
 
 IF (UNIX)
 	INSTALL(TARGETS ${telldus-core_TARGET}
-		LIBRARY         DESTINATION   ${LIBRARY_DIR}
-		ARCHIVE         DESTINATION   ${LIBRARY_DIR}
+		LIBRARY         DESTINATION   ${LIB_INSTALL_DIR}
+		ARCHIVE         DESTINATION   ${LIB_INSTALL_DIR}
 		FRAMEWORK       DESTINATION   "/Library/Frameworks"
 		PUBLIC_HEADER   DESTINATION   include
 	)

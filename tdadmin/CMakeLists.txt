@@ -63,11 +63,17 @@ IF (UNIX AND NOT APPLE)
 	CONFIGURE_FILE(
 		${CMAKE_CURRENT_SOURCE_DIR}/05-tellstick.rules
 		${CMAKE_BINARY_DIR}/parsed/05-tellstick.rules
+		@ONLY
+	)
+	CONFIGURE_FILE(
+		${CMAKE_CURRENT_SOURCE_DIR}/udev.sh
+		${CMAKE_BINARY_DIR}/parsed/udev.sh
+		@ONLY
 	)
 	INSTALL(FILES ${CMAKE_BINARY_DIR}/parsed/05-tellstick.rules
 		DESTINATION ${UDEV_RULES_DIR}
 	)
-	INSTALL(PROGRAMS udev.sh
+	INSTALL(PROGRAMS ${CMAKE_BINARY_DIR}/parsed/udev.sh
 		DESTINATION share/telldus-core/helpers/
 	)
 ENDIF (UNIX AND NOT APPLE)

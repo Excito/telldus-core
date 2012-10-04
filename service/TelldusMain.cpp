@@ -6,6 +6,8 @@
 #include "ControllerManager.h"
 #include "ControllerListener.h"
 #include "EventUpdateManager.h"
+#include "Timer.h"
+#include "Log.h"
 
 #include <stdio.h>
 #include <list>
@@ -36,9 +38,31 @@ void TelldusMain::deviceInsertedOrRemoved(int vid, int pid, bool inserted) {
 	d->controllerChangeEvent->signal(data);
 }
 
+void TelldusMain::resume() {
+	Log::notice("Came back from suspend");
+	ControllerChangeEventData *data = new ControllerChangeEventData;
+	data->vid = 0x0;
+	data->pid = 0x0;
+	data->inserted = true;
+	d->controllerChangeEvent->signal(data);
+}
+
+void TelldusMain::suspend() {
+	Log::notice("Preparing for suspend");
+	ControllerChangeEventData *data = new ControllerChangeEventData;
+	data->vid = 0x0;
+	data->pid = 0x0;
+	data->inserted = false;
+	d->controllerChangeEvent->signal(data);
+}
+
 void TelldusMain::start(void) {
 	EventRef clientEvent = d->eventHandler.addEvent();
 	EventRef dataEvent = d->eventHandler.addEvent();
+	EventRef janitor = d->eventHandler.addEvent(); //Used for regular cleanups
+	Timer supervisor(janitor); //Tells the janitor to go back to work
+	supervisor.setInterval(60); //Once every minute
+	supervisor.start();
 
 	ControllerManager controllerManager(dataEvent.get());
 	EventUpdateManager eventUpdateManager;
@@ -101,7 +125,16 @@ void TelldusMain::start(void) {
 				}
 			}
 		}
+		if (janitor->isSignaled()) {
+			//Clear all of them if there is more than one
+			while(janitor->isSignaled()) {
+				janitor->popSignal();
+			}
+			controllerManager.queryControllerStatus();
+		}
 	}
+
+	supervisor.stop();
 }
 
 void TelldusMain::stop(void){
