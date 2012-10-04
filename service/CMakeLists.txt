@@ -2,6 +2,8 @@ IF(COMMAND cmake_policy)
 	CMAKE_POLICY(SET CMP0003 NEW)
 ENDIF(COMMAND cmake_policy)
 
+FIND_PACKAGE( SignTool REQUIRED )
+
 SET (telldusd_DESCRIPTION
 	"background service for Telldus TellStick, must be running to control TellStick"
 )
@@ -16,11 +18,12 @@ SET( telldus-service_SRCS
 	ControllerMessage.cpp
 	Device.cpp
 	DeviceManager.cpp
-	Event.cpp
+	Log.cpp
 	Sensor.cpp
 	Settings.cpp
 	TelldusMain.cpp
 	TellStick.cpp
+	Timer.cpp
 	EventUpdateManager.cpp
 )
 SET( telldus-service_protocol_SRCS
@@ -32,6 +35,8 @@ SET( telldus-service_protocol_SRCS
 	ProtocolComen.cpp
 	ProtocolEverflourish.h
 	ProtocolEverflourish.cpp
+	ProtocolFineoffset.h
+	ProtocolFineoffset.cpp
 	ProtocolFuhaote.h
 	ProtocolFuhaote.cpp
 	ProtocolGroup.h
@@ -40,8 +45,12 @@ SET( telldus-service_protocol_SRCS
 	ProtocolHasta.cpp
 	ProtocolIkea.h
 	ProtocolIkea.cpp
+	ProtocolMandolyn.h
+	ProtocolMandolyn.cpp
 	ProtocolNexa.h
 	ProtocolNexa.cpp
+	ProtocolOregon.h
+	ProtocolOregon.cpp
 	ProtocolRisingSun.h
 	ProtocolRisingSun.cpp
 	ProtocolSartano.h
@@ -68,13 +77,13 @@ SET( telldus-service_HDRS
 	ControllerMessage.h
 	Device.h
 	DeviceManager.h
-	Event.h
-	EventHandler.h
+	EventUpdateManager.h
+	Log.h
 	Sensor.h
 	Settings.h
 	TelldusMain.h
 	TellStick.h
-	EventUpdateManager.h
+	Timer.h
 )
 FIND_PACKAGE(Threads REQUIRED)
 LIST(APPEND telldus-service_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
@@ -104,8 +113,6 @@ IF (APPLE) #### Mac OS X ####
 		main_mac.cpp
 		ConnectionListener_unix.cpp
 		ControllerListener_mac.cpp
-		Event_unix.cpp
-		EventHandler_unix.cpp
 		SettingsCoreFoundationPreferences.cpp
 	)
 
@@ -122,26 +129,34 @@ ELSEIF (WIN32) #### Windows ####
 	)
 	LIST(APPEND telldus-service_SRCS
 		ConnectionListener_win.cpp
-		Event_win.cpp
-		EventHandler_win.cpp
 		main_win.cpp
 		SettingsWinRegistry.cpp
 		TelldusWinService_win.cpp
+		Messages.mc
+		${CMAKE_CURRENT_BINARY_DIR}/Messages.rc
+		${CMAKE_CURRENT_BINARY_DIR}/Messages.h
 	)
 	LIST(APPEND telldus-service_HDRS
 		TelldusWinService_win.h
 	)
+	ADD_CUSTOM_COMMAND(
+		OUTPUT Messages.rc Messages.h
+		COMMAND mc.exe -u -r \"${CMAKE_CURRENT_BINARY_DIR}\" -h \"${CMAKE_CURRENT_BINARY_DIR}\" \"${CMAKE_CURRENT_SOURCE_DIR}/Messages.mc\"
+		DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/Messages.mc
+		DEPENDS Messages.rc
+		COMMENT "Compiling Messages Resource"
+	)
+	INCLUDE_DIRECTORIES( ${CMAKE_CURRENT_BINARY_DIR} )
 
 ELSE (APPLE) #### Linux ####
 	SET(DEFAULT_FTDI_ENGINE "libftdi")
 	FIND_LIBRARY(CONFUSE_LIBRARY confuse)
 	ADD_DEFINITIONS( -D_CONFUSE )
+	ADD_DEFINITIONS( -D_LINUX )
 
 	SET( telldus-service_TARGET	telldusd )
 	LIST(APPEND telldus-service_SRCS
 		ConnectionListener_unix.cpp
-		Event_unix.cpp
-		EventHandler_unix.cpp
 		main_unix.cpp
 		SettingsConfuse.cpp
 	)
@@ -159,6 +174,9 @@ IF (FTDI_ENGINE STREQUAL "ftd2xx")
 	LIST(APPEND telldus-service_LIBRARIES ${FTD2XX_LIBRARY})
 ELSE (FTDI_ENGINE STREQUAL "ftd2xx")
 	FIND_LIBRARY(FTDI_LIBRARY ftdi)
+	INCLUDE(FindPkgConfig)
+	PKG_SEARCH_MODULE(FTDI libftdi)
+	INCLUDE_DIRECTORIES( ${FTDI_INCLUDEDIR} )
 	ADD_DEFINITIONS( -DLIBFTDI )
 	LIST(APPEND telldus-service_SRCS TellStick_libftdi.cpp )
 	LIST(APPEND telldus-service_LIBRARIES ${FTDI_LIBRARY})
@@ -178,6 +196,8 @@ SET_SOURCE_FILES_PROPERTIES(${telldus-service_RESOURCES} PROPERTIES MACOSX_PACKA
 
 TARGET_LINK_LIBRARIES( ${telldus-service_TARGET}	${telldus-service_LIBRARIES} )
 
+SIGN(${telldus-service_TARGET})
+
 SET_TARGET_PROPERTIES(${telldus-service_TARGET} PROPERTIES
 	MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
 )
@@ -192,7 +212,7 @@ IF (APPLE)
 	INSTALL(CODE "
 		INCLUDE(GetPrerequisites)
 		GET_FILENAME_COMPONENT(DESTDIR \$ENV{DESTDIR} ABSOLUTE)
-		GET_PREREQUISITES(\"${TELLDUS_SERVICE_TARGET_PATH}/${telldus-service_TARGET}\" prereqs 1 0 \"\$\" \"\$\")
+		GET_PREREQUISITES(\"\${DESTDIR}/${TELLDUS_SERVICE_TARGET_PATH}/${telldus-service_TARGET}\" prereqs 1 0 \"\$\" \"\$\")
 		FOREACH(pr \${prereqs})
 			GET_FILENAME_COMPONENT(lib \${pr} NAME)
 			FILE(INSTALL \${pr} DESTINATION ${TELLDUS_SERVICE_TARGET_PATH})

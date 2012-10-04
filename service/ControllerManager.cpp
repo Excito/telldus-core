@@ -2,6 +2,8 @@
 #include "Controller.h"
 #include "Mutex.h"
 #include "TellStick.h"
+#include "Log.h"
+#include "../client/telldus-core.h"
 
 #include <map>
 #include <stdio.h>
@@ -31,6 +33,20 @@ ControllerManager::~ControllerManager() {
 }
 
 void ControllerManager::deviceInsertedOrRemoved(int vid, int pid, const std::string &serial, bool inserted) {
+	if (vid == 0x0 && pid == 0x0) { //All
+		if (inserted) {
+			loadControllers();
+		} else {
+			//Disconnect all
+			TelldusCore::MutexLocker locker(&d->mutex);
+			while(d->controllers.size()) {
+				ControllerMap::iterator it = d->controllers.begin();
+				delete it->second;
+				d->controllers.erase(it);
+			}
+		}
+		return;
+	}
 	if (vid != 0x1781) {
 		return;
 	}
@@ -118,4 +134,48 @@ void ControllerManager::loadControllers() {
 		d->lastControllerId = controllerId;
 		d->controllers[d->lastControllerId] = controller;
 	}
+}
+
+void ControllerManager::queryControllerStatus(){
+
+	std::list<TellStick *> tellStickControllers;
+
+	{
+		TelldusCore::MutexLocker locker(&d->mutex);
+		for(ControllerMap::iterator it = d->controllers.begin(); it != d->controllers.end(); ++it) {
+			TellStick *tellstick = reinterpret_cast<TellStick*>(it->second);
+			if (tellstick) {
+				tellStickControllers.push_back(tellstick);
+			}
+		}
+	}
+
+	bool reloadControllers = false;
+	std::string noop = "N+";
+	for(std::list<TellStick *>::iterator it = tellStickControllers.begin(); it != tellStickControllers.end(); ++it) {
+		int success = (*it)->send(noop);
+		if(success == TELLSTICK_ERROR_BROKEN_PIPE){
+			Log::warning("TellStick query: Error in communication with TellStick, resetting USB");
+			resetController(*it);
+		}
+		if(success == TELLSTICK_ERROR_BROKEN_PIPE || success == TELLSTICK_ERROR_NOT_FOUND){
+			reloadControllers = true;
+		}
+	}
+
+	if(!tellStickControllers.size() || reloadControllers){
+		//no tellstick at all found, or controller was reset
+		Log::debug("TellStick query: Rescanning USB ports");  //only log as debug, since this will happen all the time if no TellStick is connected
+		loadControllers();
+	}
+}
+
+int ControllerManager::resetController(Controller *controller) {
+	TellStick *tellstick = reinterpret_cast<TellStick*>(controller);
+	if (!tellstick) {
+		return true; //not tellstick, nothing to reset at the moment, just return true
+	}
+	int success = tellstick->reset();
+	deviceInsertedOrRemoved(tellstick->vid(), tellstick->pid(), tellstick->serial(), false); //remove from list and delete
+	return success;
 }

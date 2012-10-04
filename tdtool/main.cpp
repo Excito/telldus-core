@@ -2,13 +2,23 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctime>
 #include "../client/telldus-core.h"
+
+#ifdef _WINDOWS
+#define strcasecmp _stricmp
+#define DEGREE " "
+#else
+#define DEGREE "°"
+#endif
 
 const int SUPPORTED_METHODS =
 	TELLSTICK_TURNON |
 	TELLSTICK_TURNOFF |
 	TELLSTICK_BELL |
 	TELLSTICK_DIM;
+
+const int DATA_LENGTH = 20;
 
 void print_usage( char *name ) {
 	printf("Usage: %s [ options ]\n", name);
@@ -21,7 +31,7 @@ void print_usage( char *name ) {
 	printf("                      [ --raw input ]\n");
 	printf("\n");
 	printf("       --list (-l short option)\n");
-	printf("             List currently configured devices.\n");
+	printf("             List currently configured devices and all discovered sensors.\n");
 	printf("\n");
 	printf("       --help (-h short option)\n");
 	printf("             Shows this screen.\n");
@@ -77,6 +87,7 @@ void print_version() {
 }
 
 void print_device( int index ) {
+	tdInit();
 	int intId = tdGetDeviceId(index);
 	char *name = tdGetName(intId);
 	printf("%i\t%s\t", intId, name);
@@ -101,13 +112,14 @@ void print_device( int index ) {
 	printf("\n");
 }
 
-void list_devices() {
+int list_devices() {
+	tdInit();
 	int intNum = tdGetNumberOfDevices();
 	if (intNum < 0) {
 		char *errorString = tdGetErrorString(intNum);
 		fprintf(stderr, "Error fetching devices: %s\n", errorString);
 		tdReleaseString(errorString);
-		return;
+		return intNum;
 	}
 	printf("Number of devices: %i\n", intNum);
 	int i = 0;
@@ -115,9 +127,49 @@ void list_devices() {
 		print_device( i );
 		i++;
 	}
+
+	char protocol[DATA_LENGTH], model[DATA_LENGTH];
+	int sensorId = 0, dataTypes = 0;
+
+	int sensorStatus = tdSensor(protocol, DATA_LENGTH, model, DATA_LENGTH, &sensorId, &dataTypes);
+	if(sensorStatus == 0){
+		printf("\n\nSENSORS:\n\n%-20s\t%-20s\t%-5s\t%-5s\t%-8s\t%-20s\n", "PROTOCOL", "MODEL", "ID", "TEMP", "HUMIDITY", "LAST UPDATED");
+	}
+	while(sensorStatus == 0){
+		char tempvalue[DATA_LENGTH];
+		tempvalue[0] = 0;
+		char humidityvalue[DATA_LENGTH];
+		humidityvalue[0] = 0;
+		char timeBuf[80];
+		time_t timestamp = 0;
+
+		if (dataTypes & TELLSTICK_TEMPERATURE) {
+			tdSensorValue(protocol, model, sensorId, TELLSTICK_TEMPERATURE, tempvalue, DATA_LENGTH, (int *)&timestamp);
+			strcat(tempvalue, DEGREE);
+			strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", localtime(&timestamp));
+		}
+
+		if (dataTypes & TELLSTICK_HUMIDITY) {
+			tdSensorValue(protocol, model, sensorId, TELLSTICK_HUMIDITY, humidityvalue, DATA_LENGTH, (int *)&timestamp);
+			strcat(humidityvalue, "%");
+			strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", localtime(&timestamp));
+		}
+		printf("%-20s\t%-20s\t%-5i\t%-5s\t%-8s\t%-20s\n", protocol, model, sensorId, tempvalue, humidityvalue, timeBuf);
+
+		sensorStatus = tdSensor(protocol, DATA_LENGTH, model, DATA_LENGTH, &sensorId, &dataTypes);
+	}
+	printf("\n");
+	if(sensorStatus != TELLSTICK_ERROR_DEVICE_NOT_FOUND){
+		char *errorString = tdGetErrorString(sensorStatus);
+		fprintf(stderr, "Error fetching sensors: %s\n", errorString);
+		tdReleaseString(errorString);
+		return sensorStatus;
+	}
+	return TELLSTICK_SUCCESS;
 }
 
 int find_device( char *device ) {
+	tdInit();
 	int deviceId = atoi(device);
 	if (deviceId == 0) { //Try to find the id from the name
 		int intNum = tdGetNumberOfDevices();
@@ -137,11 +189,12 @@ int find_device( char *device ) {
 	return deviceId;
 }
 
-void switch_device( bool turnOn, char *device ) {
+int switch_device( bool turnOn, char *device ) {
+	tdInit();
 	int deviceId = find_device( device );
 	if (deviceId == 0) {
 		printf("Device '%s', not found!\n", device);
-		return;
+		return TELLSTICK_ERROR_DEVICE_NOT_FOUND;
 	}
 
 	char *name = tdGetName( deviceId );
@@ -158,17 +211,19 @@ void switch_device( bool turnOn, char *device ) {
 	
 	printf(" - %s\n", errorString);
 	tdReleaseString(errorString);
+	return retval;
 }
 
-void dim_device( char *device, int level ) {
+int dim_device( char *device, int level ) {
+	tdInit();
 	int deviceId = find_device( device );
 	if (deviceId == 0) {
 		printf("Device '%s', not found!\n", device);
-		return;
+		return TELLSTICK_ERROR_DEVICE_NOT_FOUND;
 	}
 	if (level < 0 || level > 255) {
 		printf("Level %i out of range!\n", level);
-		return;
+		return TELLSTICK_ERROR_SYNTAX;
 	}
 
 	char *name = tdGetName( deviceId );
@@ -177,13 +232,15 @@ void dim_device( char *device, int level ) {
 	printf("Dimming device: %i %s to %i - %s\n", deviceId, name, level, errorString);
 	tdReleaseString(name);
 	tdReleaseString(errorString);
+	return retval;
 }
 
-void bell_device( char *device ) {
+int bell_device( char *device ) {
+	tdInit();
 	int deviceId = find_device( device );
 	if (deviceId == 0) {
 		printf("Device '%s', not found!\n", device);
-		return;
+		return TELLSTICK_ERROR_DEVICE_NOT_FOUND;
 	}
 
 	char *name = tdGetName( deviceId );
@@ -192,13 +249,15 @@ void bell_device( char *device ) {
 	printf("Sending bell to: %i %s - %s\n", deviceId, name, errorString);
 	tdReleaseString(name);
 	tdReleaseString(errorString);
+	return retval;
 }
 
-void learn_device( char *device ) {
+int learn_device( char *device ) {
+	tdInit();
 	int deviceId = find_device( device );
 	if (deviceId == 0) {
 		printf("Device '%s', not found!\n", device);
-		return;
+		return TELLSTICK_ERROR_DEVICE_NOT_FOUND;
 	}
 
 	char *name = tdGetName( deviceId );
@@ -207,9 +266,11 @@ void learn_device( char *device ) {
 	printf("Learning device: %i %s - %s\n", deviceId, name, errorString);
 	tdReleaseString(name);
 	tdReleaseString(errorString);
+	return retval;
 }
 
-void send_raw_command( char *command ) {
+int send_raw_command( char *command ) {
+	tdInit();
 	const int MAX_LENGTH = 100;
 	char msg[MAX_LENGTH];
 	
@@ -221,7 +282,7 @@ void send_raw_command( char *command ) {
 		fd = fopen(command, "r");
 		if (fd == NULL) {
 			printf("Error opening file %s\n", command);
-			return;
+			return TELLSTICK_ERROR_UNKNOWN;
 		}
 		fgets(msg, MAX_LENGTH, fd);
 	}
@@ -230,6 +291,7 @@ void send_raw_command( char *command ) {
 	char *errorString = tdGetErrorString(retval);
 	printf("Sending raw command: %s\n", errorString);
 	tdReleaseString(errorString);
+	return retval;
 }
 
 int main(int argc, char **argv)
@@ -253,48 +315,58 @@ int main(int argc, char **argv)
 
 	if (argc < 2) {
 		print_usage( argv[0] );
-		return -1;
+		return -TELLSTICK_ERROR_SYNTAX;
 	}
 
-	while ( (optch = getopt_long(argc,argv,optstring,long_opts,&longindex)) != -1 )
+	int returnSuccess = 0;
+	while ( (optch = getopt_long(argc,argv,optstring,long_opts,&longindex)) != -1 ){
+		int success = 0;
 		switch (optch) {
 			case 'b' :
-				bell_device( &optarg[0] );
+				success = bell_device( &optarg[0] );
 				break;
 			case 'd' :
 				if (level >= 0) {
-					dim_device( &optarg[0], level );
+					success = dim_device( &optarg[0], level );
+					break;
 				}
+				printf("Dim level missing or incorrect value.\n");
+				success = TELLSTICK_ERROR_SYNTAX;
 				break;
 			case 'f' :
-				switch_device(false, &optarg[0]);
+				success = switch_device(false, &optarg[0]);
 				break;
 			case 'h' :
 				print_usage( argv[0] );
+				success = TELLSTICK_SUCCESS;
 				break;
 			case 'i' :
 				print_version( );
+				success = TELLSTICK_SUCCESS;
 				break;
 			case 'l' :
-				list_devices();
+				success = list_devices();
 				break;
 			case 'n' :
-				switch_device(true, &optarg[0]);
+				success = switch_device(true, &optarg[0]);
 				break;
 			case 'e' :
-				learn_device(&optarg[0]);
+				success = learn_device(&optarg[0]);
 				break;
 			case 'r' :
-				send_raw_command(&optarg[0]);
+				success = send_raw_command(&optarg[0]);
 				break;
 			case 'v' :
 				level = atoi( &optarg[0] );
 				break;
 			default :
 				print_usage( argv[0] );
-				return -1;
+				success = TELLSTICK_ERROR_SYNTAX;
 		}
-
+		if(success != TELLSTICK_SUCCESS){
+			returnSuccess = success;  //return last error message
+		}
+	}
 	tdClose(); //Cleaning up
-	return 0;
+	return -returnSuccess;
 }
