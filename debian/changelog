@@ -1,3 +1,10 @@
+telldus-core (2.1.1-1) unstable; urgency=low
+
+  * Imported Upstream version 2.1.0
+  * Imported Upstream version 2.1.1
+
+ -- Carl Fürstenberg <carl@excito.com>  Thu, 04 Oct 2012 13:38:35 +0200
+
 telldus-core (2.0.4-2) unstable; urgency=low
 
   * fix config file 
